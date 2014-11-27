@@ -141,6 +141,41 @@ class NodeTests(unittest.TestCase):
         self.assertEqual(formlike.errors, {"__all__": ["oops"]})
 
 
+class FormTests(unittest.TestCase):
+    def _getTarget(self):
+        from django_treeform import TreeForm
+        return TreeForm
+
+    def _makeOne(self, params):
+        class ItemForm(self._getTarget()):
+            age = forms.IntegerField(required=False)
+        return ItemForm(params)
+
+    def test_it_success(self):
+        params = {"age": "10"}
+        formlike = self._makeOne(params)
+
+        self.assertTrue(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, {"age": 10})
+        self.assertEqual(formlike.errors, {"age": []})
+
+    def test_it_success2(self):
+        params = {}
+        formlike = self._makeOne(params)
+
+        self.assertTrue(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, {"age": None})
+        self.assertEqual(formlike.errors, {"age": []})
+
+    def test_it_failure(self):
+        params = {"age": object()}
+        formlike = self._makeOne(params)
+
+        self.assertFalse(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, {"age": None})
+        self.assertNotEqual(formlike.errors, {"age": []})
+
+
 class TreeFormTests(unittest.TestCase):
     def _getTarget(self):
         from django_treeform import TreeForm
@@ -208,24 +243,47 @@ class TreeFormTests(unittest.TestCase):
         self.assertEqual(formlike.errors, {"left": {}, "right": {}, "__all__": ["oops"]})
         self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
 
-    def test_with_custom_validation__failure2(self):
-        from django_treeform import Node
+    # def test_with_custom_validation__failure2(self):
+    #     from django_treeform import Node
 
-        def clean(self):
-            if self.has_error():
-                return
-            if self.cleaned_data["x"] >= self.cleaned_data["y"]:
-                raise forms.ValidationError("oops")
+    #     def clean(self):
+    #         if self.has_error():
+    #             return
+    #         if self.cleaned_data["x"] >= self.cleaned_data["y"]:
+    #             raise forms.ValidationError("oops")
 
-        class PointPairForm(self._getTarget()):
-            left = Node(PointForm, clean=clean)
-            right = Node(PointForm, clean=clean)
+    #     class PointPairForm(self._getTarget()):
+    #         left = Node(PointForm, clean=clean)
+    #         right = Node(PointForm, clean=clean)
 
-        params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
-        formlike = PointPairForm(params)
-        self.assertFalse(formlike.is_valid())
-        self.assertEqual(formlike.errors, {"left": {}, "right": {"__all__": ["oops"]}})
-        self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
+    #     params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
+    #     formlike = PointPairForm(params)
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertEqual(formlike.errors, {"left": {}, "right": {"__all__": ["oops"]}})
+    #     self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
+
+    # def test_with_custom_validation__failure__multiple(self):
+    #     from django_treeform import Node
+
+    #     def clean(self):
+    #         if self.has_error():
+    #             return
+    #         if self.cleaned_data["x"] >= self.cleaned_data["y"]:
+    #             raise forms.ValidationError("oops")
+
+    #     class PointPairForm(self._getTarget()):
+    #         left = Node(PointForm, clean=clean)
+    #         right = Node(PointForm, clean=clean)
+
+    #     params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
+    #     formlike = PointPairForm(params)
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertFalse(formlike.is_valid())
+    #     self.assertEqual(formlike.errors, {"left": {}, "right": {"__all__": ["oops"]}})
+    #     self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
 
 
 class TreeFormTests2(unittest.TestCase):
