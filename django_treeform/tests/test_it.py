@@ -43,6 +43,37 @@ class SequenceTests(unittest.TestCase):
         self.assertEqual(formlike.cleaned_data, [{"y": 20}])
         self.assertNotEqual(formlike.errors, [{}])
 
+    def test_with_custom_validation__success(self):
+        def clean(self):
+            if any(self.errors):
+                return
+            if len(self.cleaned_data) > 2:
+                raise forms.ValidationError("oops")
+
+        FormLikeClass = self._makeOne(PointForm, clean=clean)
+        params = [{"x": "10", "y": "20"}]
+        formlike = FormLikeClass(params)
+
+        self.assertTrue(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, [{"x": 10, "y": 20}])
+        self.assertEqual(formlike.errors, [{}])
+
+    def test_with_custom_validation__failure(self):
+        def clean(self):
+            if any(self.errors):
+                return
+            if len(self.cleaned_data) < 2:
+                raise forms.ValidationError("oops")
+
+        FormLikeClass = self._makeOne(PointForm, clean=clean)
+        params = [{"x": "10", "y": "20"}]
+        formlike = FormLikeClass(params)
+
+        self.assertFalse(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, [{"x": 10, "y": 20}])
+        self.assertEqual(formlike.errors, [{}])
+        self.assertEqual(formlike.non_form_errors, ["oops"])
+
 
 class NodeTests(unittest.TestCase):
     def _getTarget(self):

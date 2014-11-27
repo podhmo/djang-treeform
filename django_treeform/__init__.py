@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 from functools import partial
 from django.utils.functional import cached_property
+from django import forms
 
 
 class _Node(object):
@@ -23,12 +24,25 @@ class _Node(object):
 
 
 class _Sequence(object):
-    def __init__(self, formclass, list_of_params):
+    def __init__(self, formclass, list_of_params, clean=None):
         self.formclass = formclass
         self.forms = [formclass(params) for params in list_of_params]
+        self._clean = clean
+        self.non_form_errors = []
 
     def is_valid(self):
-        return all(form.is_valid() for form in self.forms)
+        status = all(form.is_valid() for form in self.forms)
+        try:
+            self.clean()
+        except forms.ValidationError as e:
+            self.non_form_errors.append(e.args[0])
+            status = False
+        return status
+
+    def clean(self):
+        if self._clean is None:
+            return
+        self._clean(self)
 
     @cached_property
     def errors(self):
@@ -36,7 +50,6 @@ class _Sequence(object):
 
     @cached_property
     def cleaned_data(self):
-        self.is_valid()
         return [form.cleaned_data for form in self.forms]
 
 
@@ -87,8 +100,8 @@ class _TreeForm(object):
 TreeForm = TreeFormMeta("TreeForm", (_TreeForm, ), {})
 
 
-def Sequence(formclass):
-    return partial(_Sequence, formclass)
+def Sequence(formclass, clean=None):
+    return partial(_Sequence, formclass, clean=clean)
 
 
 def Node(formclass):
