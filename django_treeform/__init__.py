@@ -10,17 +10,16 @@ class _Node(object):
         self.keyname = keyname
         self.form = formclass(params[keyname])
         self._clean = clean
-        self.non_form_errors = []
         self.configured = False
+        self._self_errors = []
 
     def is_valid(self):
         status = self.form.is_valid()
         self.configured = True
-
         try:
             self.clean()
         except forms.ValidationError as e:
-            self.non_form_errors.append(e.args[0])
+            self._self_errors.append(e.args[0])
             status = False
         return status
 
@@ -29,23 +28,29 @@ class _Node(object):
             return
         self._clean(self)
 
-    @cached_property
+    @property
     def errors(self):
         if not self.configured:
-            self.is_valid()
+            raise RuntimeError("is_valid() is not called")
         errors = self.form.errors
-        if self.non_form_errors:
+
+        if bool(self._self_errors):
             if "__all__" in errors:
-                errors["__all__"].extend(self.non_form_errors)
+                errors["__all__"].extend(self._self_errors)
             else:
-                errors["__all__"] = self.non_form_errors
-        return {self.keyname: errors}
+                errors["__all__"] = self._self_errors
+        if hasattr(self.form, "non_form_errors") and bool(self.form.non_form_errors):
+            if "__all__" in errors:
+                errors["__all__"].extend(self.form.non_form_errors)
+            else:
+                errors["__all__"] = self.form.non_form_errors
+        return errors
 
     @cached_property
     def cleaned_data(self):
         if not self.configured:
-            self.is_valid()
-        return {self.keyname: self.form.cleaned_data}
+            raise RuntimeError("is_valid() is not called")
+        return self.form.cleaned_data
 
     def has_error(self):
         if hasattr(self.formclass, "has_error"):
@@ -63,7 +68,7 @@ class _Sequence(object):
         self.configured = False
 
     def is_valid(self):
-        status = all(form.is_valid() for form in self.forms)
+        status = all([form.is_valid() for form in self.forms])
         self.configured = True
         try:
             self.clean()
@@ -80,13 +85,13 @@ class _Sequence(object):
     @cached_property
     def errors(self):
         if not self.configured:
-            self.is_valid()
+            raise RuntimeError("is_valid() is not called")
         return [form.errors for form in self.forms]
 
     @cached_property
     def cleaned_data(self):
         if not self.configured:
-            self.is_valid()
+            raise RuntimeError("is_valid() is not called")
         return [form.cleaned_data for form in self.forms]
 
     def has_error(self):
@@ -127,7 +132,7 @@ class _TreeForm(object):
         self.configured = False
 
     def is_valid(self):
-        status = all(node.is_valid() for node in self.nodes)
+        status = all([node.is_valid() for node in self.nodes])
         self.configured = True
         try:
             self.clean()
@@ -142,14 +147,10 @@ class _TreeForm(object):
     @cached_property
     def errors(self):
         if not self.configured:
-            self.is_valid()
+            raise RuntimeError("is_valid() is not called")
         errors = {}
         for node in self.nodes:
-            errors.update(node.errors)
-            if hasattr(node, "non_form_errors") and bool(node.non_form_errors):
-                if "__all__" not in errors:
-                    errors["__all__"] = []
-                errors["__all__"].extend(node.non_form_errors)
+            errors.update({node.keyname: node.errors})
         if bool(self.non_form_errors):
             if "__all__" not in errors:
                 errors["__all__"] = []
@@ -159,10 +160,10 @@ class _TreeForm(object):
     @cached_property
     def cleaned_data(self):
         if not self.configured:
-            self.is_valid()
+            raise RuntimeError("is_valid() is not called")
         cleaned_data = {}
         for node in self.nodes:
-            cleaned_data.update(node.cleaned_data)
+                cleaned_data.update({node.keyname: node.cleaned_data})
         return cleaned_data
 
     def has_error(self):

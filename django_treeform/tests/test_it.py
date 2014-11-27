@@ -89,8 +89,8 @@ class NodeTests(unittest.TestCase):
         formlike = FormLikeClass(params)
 
         self.assertTrue(formlike.is_valid())
-        self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}})
-        self.assertEqual(formlike.errors, {"left": {}})
+        self.assertEqual(formlike.cleaned_data, {"x": 10, "y": 20})
+        self.assertEqual(formlike.errors, {})
 
     def test_it_failure(self):
         FormLikeClass = self._makeOne(PointForm)("left")
@@ -98,8 +98,8 @@ class NodeTests(unittest.TestCase):
         formlike = FormLikeClass(params)
 
         self.assertFalse(formlike.is_valid())
-        self.assertEqual(formlike.cleaned_data, {"left": {"y": 20}})
-        self.assertNotEqual(formlike.errors, {"left": {}})
+        self.assertEqual(formlike.cleaned_data, {"y": 20})
+        self.assertNotEqual(formlike.errors, {})
 
     def test_it_missing(self):
         FormLikeClass = self._makeOne(PointForm)("left")
@@ -107,14 +107,14 @@ class NodeTests(unittest.TestCase):
         formlike = FormLikeClass(params)
 
         self.assertFalse(formlike.is_valid())
-        self.assertEqual(formlike.cleaned_data, {"left": {"y": 20}})
-        self.assertNotEqual(formlike.errors, {"left": {}})
+        self.assertEqual(formlike.cleaned_data, {"y": 20})
+        self.assertNotEqual(formlike.errors, {})
 
     def test_with_custom_validation__success(self):
         def clean(self):
             if self.has_error():
                 return
-            if self.cleaned_data["left"]["x"] > 20:
+            if self.cleaned_data["x"] > 20:
                 raise forms.ValidationError("oops")
 
         FormLikeClass = self._makeOne(PointForm, clean=clean)("left")
@@ -122,14 +122,14 @@ class NodeTests(unittest.TestCase):
         formlike = FormLikeClass(params)
 
         self.assertTrue(formlike.is_valid())
-        self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}})
-        self.assertEqual(formlike.errors, {"left": {}})
+        self.assertEqual(formlike.cleaned_data, {"x": 10, "y": 20})
+        self.assertEqual(formlike.errors, {})
 
     def test_with_custom_validation__failure(self):
         def clean(self):
             if self.has_error():
                 return
-            if self.cleaned_data["left"]["x"] < 20:
+            if self.cleaned_data["x"] < 20:
                 raise forms.ValidationError("oops")
 
         FormLikeClass = self._makeOne(PointForm, clean=clean)("left")
@@ -137,8 +137,8 @@ class NodeTests(unittest.TestCase):
         formlike = FormLikeClass(params)
 
         self.assertFalse(formlike.is_valid())
-        self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}})
-        self.assertEqual(formlike.errors, {"left": {}})
+        self.assertEqual(formlike.cleaned_data, {"x": 10, "y": 20})
+        self.assertEqual(formlike.errors, {"__all__": ["oops"]})
 
 
 class TreeFormTests(unittest.TestCase):
@@ -185,8 +185,8 @@ class TreeFormTests(unittest.TestCase):
 
         params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
         formlike = PointPairForm(params)
-        self.assertEqual(formlike.errors, {"left": {}, "right": {}})
         self.assertTrue(formlike.is_valid())
+        self.assertEqual(formlike.errors, {"left": {}, "right": {}})
         self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
 
     def test_with_custom_validation__failure(self):
@@ -204,28 +204,28 @@ class TreeFormTests(unittest.TestCase):
 
         params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
         formlike = PointPairForm(params)
-        self.assertEqual(formlike.errors, {"left": {}, "right": {}, "__all__": ["oops"]})
         self.assertFalse(formlike.is_valid())
+        self.assertEqual(formlike.errors, {"left": {}, "right": {}, "__all__": ["oops"]})
         self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
 
-    # def test_with_custom_validation__failure2(self):
-    #     from django_treeform import Node
+    def test_with_custom_validation__failure2(self):
+        from django_treeform import Node
 
-    #     def clean(self):
-    #         if self.has_error():
-    #             return
-    #         if self.cleaned_data["x"] >= self.cleaned_data["y"]:
-    #             raise forms.ValidationError("oops")
+        def clean(self):
+            if self.has_error():
+                return
+            if self.cleaned_data["x"] >= self.cleaned_data["y"]:
+                raise forms.ValidationError("oops")
 
-    #     class PointPairForm(self._getTarget()):
-    #         left = Node(PointForm, clean=clean)
-    #         right = Node(PointForm, clean=clean)
+        class PointPairForm(self._getTarget()):
+            left = Node(PointForm, clean=clean)
+            right = Node(PointForm, clean=clean)
 
-    #     params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
-    #     formlike = PointPairForm(params)
-    #     self.assertEqual(formlike.errors, {"left": {}, "right": {}, "__all__": ["oops"]})
-    #     self.assertFalse(formlike.is_valid())
-    #     self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
+        params = {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": "20"}}
+        formlike = PointPairForm(params)
+        self.assertFalse(formlike.is_valid())
+        self.assertEqual(formlike.errors, {"left": {}, "right": {"__all__": ["oops"]}})
+        self.assertEqual(formlike.cleaned_data, {"left": {"x": 10, "y": 20}, "right": {"x": 20, "y": 20}})
 
 
 class TreeFormTests2(unittest.TestCase):
