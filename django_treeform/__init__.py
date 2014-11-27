@@ -5,33 +5,18 @@ from django import forms
 
 
 class _Node(object):
-    def __init__(self, formclass, keyname, params):
+    def __init__(self, formclass, keyname, params, clean=None):
         self.formclass = formclass
         self.keyname = keyname
         self.form = formclass(params[keyname])
-
-    def is_valid(self):
-        return self.form.is_valid()
-
-    @cached_property
-    def errors(self):
-        return {self.keyname: self.form.errors}
-
-    @cached_property
-    def cleaned_data(self):
-        self.is_valid()
-        return {self.keyname: self.form.cleaned_data}
-
-
-class _Sequence(object):
-    def __init__(self, formclass, list_of_params, clean=None):
-        self.formclass = formclass
-        self.forms = [formclass(params) for params in list_of_params]
         self._clean = clean
         self.non_form_errors = []
+        self.configured = False
 
     def is_valid(self):
-        status = all(form.is_valid() for form in self.forms)
+        status = self.form.is_valid()
+        self.configured = True
+
         try:
             self.clean()
         except forms.ValidationError as e:
@@ -46,20 +31,79 @@ class _Sequence(object):
 
     @cached_property
     def errors(self):
+        if not self.configured:
+            self.is_valid()
+        errors = self.form.errors
+        if self.non_form_errors:
+            if "__all__" in errors:
+                errors["__all__"].extend(self.non_form_errors)
+            else:
+                errors["__all__"] = self.non_form_errors
+        return {self.keyname: errors}
+
+    @cached_property
+    def cleaned_data(self):
+        if not self.configured:
+            self.is_valid()
+        return {self.keyname: self.form.cleaned_data}
+
+    def has_error(self):
+        if hasattr(self.formclass, "has_error"):
+            return self.form.has_error() or bool(self.non_form_errors)
+        else:
+            return any(self.errors.values())
+
+
+class _Sequence(object):
+    def __init__(self, formclass, list_of_params, clean=None):
+        self.formclass = formclass
+        self.forms = [formclass(params) for params in list_of_params]
+        self._clean = clean
+        self.non_form_errors = []
+        self.configured = False
+
+    def is_valid(self):
+        status = all(form.is_valid() for form in self.forms)
+        self.configured = True
+        try:
+            self.clean()
+        except forms.ValidationError as e:
+            self.non_form_errors.append(e.args[0])
+            status = False
+        return status
+
+    def clean(self):
+        if self._clean is None:
+            return
+        self._clean(self)
+
+    @cached_property
+    def errors(self):
+        if not self.configured:
+            self.is_valid()
         return [form.errors for form in self.forms]
 
     @cached_property
     def cleaned_data(self):
+        if not self.configured:
+            self.is_valid()
         return [form.cleaned_data for form in self.forms]
+
+    def has_error(self):
+        if hasattr(self.formclass, "has_error"):
+            return any(f.has_error() for f in self.forms) or bool(self.non_form_errors)
+        else:
+            return any(self.errors)
 
 
 class PartialWrapper(object):
-    def __init__(self, cls, formclass):
+    def __init__(self, cls, formclass, clean=None):
         self.cls = cls
         self.formclass = formclass
+        self.clean = clean
 
     def __call__(self, keyname):
-        return partial(self.cls, self.formclass, keyname)
+        return partial(self.cls, self.formclass, keyname, clean=self.clean)
 
 
 class TreeFormMeta(type):
@@ -79,23 +123,51 @@ class TreeFormMeta(type):
 class _TreeForm(object):
     def __init__(self, params):
         self.nodes = [f(params) for f in self.factories]
+        self.non_form_errors = []
+        self.configured = False
 
     def is_valid(self):
-        return all(node.is_valid() for node in self.nodes)
+        status = all(node.is_valid() for node in self.nodes)
+        self.configured = True
+        try:
+            self.clean()
+        except forms.ValidationError as e:
+            self.non_form_errors.append(e.args[0])
+            status = False
+        return status
+
+    def clean(self):
+        pass
 
     @cached_property
     def errors(self):
+        if not self.configured:
+            self.is_valid()
         errors = {}
         for node in self.nodes:
             errors.update(node.errors)
+            if hasattr(node, "non_form_errors") and bool(node.non_form_errors):
+                if "__all__" not in errors:
+                    errors["__all__"] = []
+                errors["__all__"].extend(node.non_form_errors)
+        if bool(self.non_form_errors):
+            if "__all__" not in errors:
+                errors["__all__"] = []
+            errors["__all__"].extend(self.non_form_errors)
         return errors
 
     @cached_property
     def cleaned_data(self):
+        if not self.configured:
+            self.is_valid()
         cleaned_data = {}
         for node in self.nodes:
             cleaned_data.update(node.cleaned_data)
         return cleaned_data
+
+    def has_error(self):
+        return any(node.has_error() for node in self.nodes)
+
 
 TreeForm = TreeFormMeta("TreeForm", (_TreeForm, ), {})
 
@@ -104,8 +176,8 @@ def Sequence(formclass, clean=None):
     return partial(_Sequence, formclass, clean=clean)
 
 
-def Node(formclass):
-    return PartialWrapper(_Node, formclass)
+def Node(formclass, clean=None):
+    return PartialWrapper(_Node, formclass, clean=clean)
 
 
 def SequenceNode(formclass):
