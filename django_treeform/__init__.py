@@ -46,11 +46,11 @@ class _Node(object):
             return
         self._clean(self)
 
-    @cached_property
+    @property
     def errors(self):
         if not self.is_cleaned:
             raise RuntimeError("is_valid() is not called")
-        errors = self.form.errors
+        errors = self.form.errors.copy()
 
         if bool(self._self_errors):
             if "__all__" in errors:
@@ -102,7 +102,7 @@ class _Sequence(object):
             return
         self._clean(self)
 
-    @cached_property
+    @property
     def errors(self):
         if not self.is_cleaned:
             raise RuntimeError("is_valid() is not called")
@@ -118,7 +118,7 @@ class _Sequence(object):
         if hasattr(self.formclass, "has_error"):
             return any(f.has_error() for f in self.forms) or bool(self.non_form_errors)
         else:
-            return any(self.errors)
+            return any(self.errors) or bool(self.non_form_errors)
 
 
 class PartialWrapper(object):
