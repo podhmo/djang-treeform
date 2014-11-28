@@ -180,6 +180,23 @@ class NodeTests(unittest.TestCase):
         self.assertEqual(formlike.errors, {"__all__": ["oops"]})
 
 
+class NodeTests2(unittest.TestCase):
+    def _getTarget(self):
+        from django_treeform import Node
+        return Node
+
+    def _makeOne(self, *args, **kwargs):
+        return self._getTarget()(*args, **kwargs)
+
+    def test_it(self):
+        target = self._makeOne(self._makeOne(PointForm)("Y"))("X")
+        params = {"X": {"Y": {"x": "20", "y": "20"}}}
+        formlike = target(params)
+        self.assertTrue(formlike.is_valid())
+        self.assertEqual(formlike.cleaned_data, {'x': 20, 'y': 20})
+        self.assertEqual(formlike.errors, {})
+
+
 class FormTests(unittest.TestCase):
     def _getTarget(self):
         from django_treeform import TreeForm
@@ -408,3 +425,56 @@ class TreeFormTests4(unittest.TestCase):
         expected = {'a': {'b': {'c': {'d': {'e': {'items': [{'name': 'A'}, {'name': 'B'}]}}}}}}
         self.assertEqual(formlike.cleaned_data, expected)
         self.assertEqual(formlike.errors, {'a': {'b': {'c': {'d': {'e': {'items': [{}, {}]}}}}}})
+
+
+class TreeFormTests5(unittest.TestCase):
+    def test_it(self):
+        from django_treeform import TreeForm, SequenceNode, Sequence
+
+        class CharacteristicForm(TreeForm):
+            id = forms.IntegerField()
+            name = forms.CharField()
+            rating = forms.CharField()
+
+        class PersonForm(TreeForm):
+            id = forms.IntegerField()
+            name = forms.CharField()
+            phone = forms.CharField()
+            Charecteristics = SequenceNode(CharacteristicForm)
+
+        params = [{
+            "id": 1,
+            "name": "abc",
+            "phone": "12345",
+            "Charecteristics": [
+                {
+                    "id": 1,
+                    "name": "Good Looking",
+                    "rating": "Average",
+                },
+                {
+                    "id": 2,
+                    "name": "Smart",
+                    "rating": "Excellent",
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "name": "abc",
+            "phone": "12345",
+            "Charecteristics": [
+                {
+                    "id": 1,
+                    "name": "Good Looking",
+                    "rating": "Average",
+                },
+                {
+                    "id": 2,
+                    "name": "Smart",
+                    "rating": "Excellent",
+                }
+            ]
+        }]
+        form = Sequence(PersonForm)(params)
+        self.assertTrue(form.is_valid())
